@@ -63,11 +63,11 @@ async ({url, method, params}) => {
   let res;
   if (method === 'GET') {
     const qs = new URLSearchParams(params).toString();
-    res = await fetch(url + '?' + qs, {credentials: 'include'});
+    res = await fetch(url + '?' + qs, {credentials: 'omit'});
   } else {
     const body = new FormData();
     for (const [k, v] of Object.entries(params)) body.append(k, v);
-    res = await fetch(url, {method, body, credentials: 'include'});
+    res = await fetch(url, {method, body, credentials: 'omit'});
   }
   return await res.json();
 }

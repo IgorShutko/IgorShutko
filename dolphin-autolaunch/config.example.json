@@ -1,0 +1,12 @@
+{
+  "dolphin_token": "ВСТАВЬ_JWT_ИЗ_ПАНЕЛИ_DOLPHIN_API",
+  "local_api": "http://localhost:3001/v1.0",
+  "graph_version": "v23.0",
+  "max_daily_budget": 50,
+  "max_total_daily_budget": 300,
+  "allow_activate": false,
+  "request_delay": 1.5,
+  "token_wait": 60,
+  "stop_profile_after": true,
+  "runs_dir": "runs"
+}

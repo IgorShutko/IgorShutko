@@ -32,11 +32,11 @@
     const url = `https://graph.facebook.com/${CFG.GRAPH}/${path}`;
     let res;
     if (method === 'GET') {
-      res = await fetch(url + '?' + new URLSearchParams(p), { credentials: 'include' });
+      res = await fetch(url + '?' + new URLSearchParams(p), { credentials: 'omit' });
     } else {
       const body = new FormData();
       for (const k in p) body.append(k, p[k]);
-      res = await fetch(url, { method, body, credentials: 'include' });
+      res = await fetch(url, { method, body, credentials: 'omit' });
     }
     const j = await res.json();
     await sleep(1500);
