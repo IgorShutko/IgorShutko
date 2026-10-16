@@ -28,7 +28,7 @@
    -> распакуй -> зайди в папку `dolphin-autolaunch`.
 3. Двойной клик `setup_windows.bat`: поставит всё, откроет `config.json` в Блокноте (вставь токен Dolphin), проверит профили.
 4. Дальше команды через `run.bat` в cmd из этой папки:
-   `run.bat inspect --profile 849425579`
+   `run.bat inspect --profile PROFILE_ID`
 
 ## Установка (Mac / вручную)
 
