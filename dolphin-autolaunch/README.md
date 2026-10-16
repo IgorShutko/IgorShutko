@@ -21,7 +21,16 @@
 
 Повторный запуск того же брифа **продолжает с места ошибки**: уже созданное не дублируется.
 
-## Установка (Windows/Mac, на ПК где стоит Dolphin)
+## Установка на Windows (самый простой путь)
+
+1. Python 3.11+ с https://www.python.org/downloads/ - при установке галка **"Add python.exe to PATH"**.
+2. Скачай код: https://github.com/igorshutko/igorshutko/archive/refs/heads/claude/admiring-hawking-ebw4je.zip
+   -> распакуй -> зайди в папку `dolphin-autolaunch`.
+3. Двойной клик `setup_windows.bat`: поставит всё, откроет `config.json` в Блокноте (вставь токен Dolphin), проверит профили.
+4. Дальше команды через `run.bat` в cmd из этой папки:
+   `run.bat inspect --profile 849425579`
+
+## Установка (Mac / вручную)
 
 ```bash
 cd dolphin-autolaunch
