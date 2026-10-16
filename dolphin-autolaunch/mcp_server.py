@@ -113,11 +113,13 @@ async def write_brief(path: str, rows: list[dict]) -> dict:
 
 
 @mcp.tool()
-async def launch_brief(brief: str, dry_run: bool = True, run_name: str = "", profiles: list[str] | None = None) -> dict:
-    """Заливает бриф. dry_run=True: проверить профили/кабинеты без создания. Всё создаётся в PAUSED.
+async def launch_brief(brief: str, dry_run: bool = True, run_name: str = "", profiles: list[str] | None = None,
+                       activate: bool = False) -> dict:
+    """Заливает бриф. dry_run=True: проверить профили/кабинеты без создания. По умолчанию всё в PAUSED.
+    activate=True - сразу включить созданное (только после явного "включай" от пользователя; нужен allow_activate).
     Повторный вызов с тем же run_name продолжает с места ошибки."""
     def go():
-        run = launch(load_config(), brief, run_name or None, dry_run, profiles)
+        run = launch(load_config(), brief, run_name or None, dry_run, profiles, activate)
         return {"run": run.name, "results_csv": str(run.results_path), "rows": run.state["rows"],
                 "campaigns": run.state["campaigns"], "ads_created": len(run.state["ads"])}
     return await _run(go)

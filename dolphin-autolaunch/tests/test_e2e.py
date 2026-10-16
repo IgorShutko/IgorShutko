@@ -230,3 +230,33 @@ def test_cli_and_mcp(env, capsys):
         assert len(res["ads"]) == 1
     finally:
         os.environ.pop("DOLPHIN_ADS_CONFIG", None)
+
+
+def test_launch_with_activate(env):
+    fake, tmp = env
+    cfg = load_config(str(tmp / "config.json"))
+    brief = write_brief(tmp, ROWS[:2] + ROWS[3:], "act.csv")  # UA: 1 кампания/1 адсет/2 ad; PL: 1/1/1
+
+    with pytest.raises(PermissionError):
+        launch(cfg, brief, "a1", activate=True)
+    assert not fake.graph_calls("POST")
+
+    cfg.allow_activate = True
+    fake.fail("POST", r"act_222/ads$", {"message": "Invalid", "code": 100}, times=1)  # PL объявление упадёт
+    run = launch(cfg, brief, "a1", activate=True)
+    acts = [c for c in fake.graph_calls("POST") if c["params"].get("status") == "ACTIVE"]
+    kinds = [c["path"].rsplit("/", 1)[-1][0] for c in acts]
+    assert kinds == ["a", "a", "s", "c"]  # только UA: объявления -> адсет -> кампания; PL не включён
+    assert len(run.state["active"]) == 4
+
+    # повтор: досоздаёт PL и включает только его, UA повторно не трогает
+    n = len(fake.graph_calls("POST"))
+    launch(cfg, brief, "a1", activate=True)
+    new = fake.graph_calls("POST")[n:]
+    assert [c["path"].rsplit("/", 1)[-1] for c in new][0] == "ads"
+    assert [c["path"].rsplit("/", 1)[-1][0] for c in new if c["params"].get("status") == "ACTIVE"] == ["a", "s", "c"]
+
+    # третий запуск - ничего
+    n = len(fake.calls)
+    launch(cfg, brief, "a1", activate=True)
+    assert not [c for c in fake.calls[n:] if "start" in c["path"]]

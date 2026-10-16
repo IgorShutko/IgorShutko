@@ -58,6 +58,9 @@ python -m dolphin_ads launch examples/brief.csv --run drop_oct16
 # 7. проверил в Ads Manager -> включил (нужно "allow_activate": true в config.json)
 python -m dolphin_ads activate --run drop_oct16 --yes
 
+# или залить и сразу включить одной командой (тоже нужен allow_activate: true)
+python -m dolphin_ads launch examples/brief.csv --run drop_oct16 --activate
+
 # 8. статистика (CSV сохраняется в runs/)
 python -m dolphin_ads stats --run drop_oct16 --level ad --date today --result purchase
 
@@ -112,7 +115,8 @@ Google Sheets вместо CSV: открой доступ "Все, у кого �
 
 ## Предохранители
 
-- Всё создаётся в **PAUSED**. Включение - только `activate --yes` и только при `"allow_activate": true`.
+- Всё создаётся в **PAUSED**. Включение - `activate --yes` или `launch --activate`, и только при `"allow_activate": true`.
+- При `--activate` включается только то, что создалось целиком: объявления -> адсеты -> кампании (кампания последней, чтобы не крутилось полуготовое). Упавшие строки не включаются; повторный запуск досоздаёт и включает их.
 - `max_daily_budget` - потолок на один адсет/кампанию, `max_total_daily_budget` - на весь залив. Проверяется до старта браузера.
 - Неактивный кабинет (status != 1) - профиль пропускается, остальные идут дальше.
 - Rate limit (коды 4, 17, 613, 80004 ...) - повтор с бэкоффом. Протух токен (190) - перезагрузка Ads Manager и повтор.

@@ -45,6 +45,7 @@ def main(argv=None):
     p.add_argument("--run", help="имя прогона (по умолчанию имя файла брифа)")
     p.add_argument("--dry-run", action="store_true", help="проверить профили и кабинеты, ничего не создавать")
     p.add_argument("--profile", action="append", help="только эти профили (можно несколько)")
+    p.add_argument("--activate", action="store_true", help="сразу включить созданное (нужен allow_activate: true)")
 
     p = sub.add_parser("stats", help="статистика по прогону")
     p.add_argument("--run", required=True)
@@ -109,7 +110,7 @@ def main(argv=None):
             print(f"\nOK: {len(ads)} объявлений")
 
         elif a.cmd == "launch":
-            run = launch(cfg, a.brief, a.run, a.dry_run, a.profile)
+            run = launch(cfg, a.brief, a.run, a.dry_run, a.profile, a.activate)
             print(f"\nСостояние: {run.state_path}\nЛог: {run.log_path}")
 
         elif a.cmd == "stats":

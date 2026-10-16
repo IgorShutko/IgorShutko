@@ -276,8 +276,30 @@ def check_profile(s: ProfileSession, ads: list[AdRow], log) -> dict:
     return currencies
 
 
+def activate_rows(s: ProfileSession, run: Run, rows: list[AdRow]) -> int:
+    """Включает созданные объявления строк + их адсеты и кампании (объявления -> адсеты -> кампании,
+    чтобы откруток не было, пока вся ветка не включена). Уже включённое пропускает."""
+    active = run.state.setdefault("active", {})
+    created = [a for a in rows if a.ad_key in run.state["ads"]]
+    order = ([("ad", a.ad_key, run.state["ads"][a.ad_key]) for a in created]
+             + [("adset", k, run.state["adsets"][k]) for k in dict.fromkeys(a.adset_key for a in created)]
+             + [("campaign", k, run.state["campaigns"][k]) for k in dict.fromkeys(a.campaign_key for a in created)])
+    n = 0
+    for kind, key, oid in order:
+        if active.get(key):
+            continue
+        s.post(oid, status="ACTIVE")
+        active[key] = datetime.now().isoformat(timespec="seconds")
+        run.save()
+        run.log(f"  ▶ {kind} {oid} -> ACTIVE")
+        n += 1
+    return n
+
+
 def launch(cfg: Config, brief: str, run_name: str | None = None, dry_run: bool = False,
-           only_profiles: list[str] | None = None) -> Run:
+           only_profiles: list[str] | None = None, activate: bool = False) -> Run:
+    if activate and not cfg.allow_activate:
+        raise PermissionError("Автовключение запрещено: поставь \"allow_activate\": true в config.json")
     ads = parse(brief)
     if only_profiles:
         ads = [a for a in ads if a.profile in only_profiles]
@@ -293,7 +315,7 @@ def launch(cfg: Config, brief: str, run_name: str | None = None, dry_run: bool =
     n_c = sum(len(v) for v in structure.values())
     n_s = sum(len(c["adsets"]) for v in structure.values() for c in v.values())
     run.log(f"=== {run_name}: профилей {len(structure)}, кампаний {n_c}, адсетов {n_s}, объявлений {len(ads)}"
-            f"{' [DRY RUN]' if dry_run else ''}")
+            f"{' [DRY RUN]' if dry_run else ''}{' [+ АВТОВКЛЮЧЕНИЕ]' if activate and not dry_run else ''}")
 
     dolphin = Dolphin(cfg)
     by_profile: dict[str, list[AdRow]] = {}
@@ -302,19 +324,26 @@ def launch(cfg: Config, brief: str, run_name: str | None = None, dry_run: bool =
 
     for profile, rows in by_profile.items():
         todo = [a for a in rows if a.ad_key not in run.state["ads"]]
-        if not todo:
+        need_activate = activate and not dry_run and any(
+            not run.state.get("active", {}).get(a.ad_key) for a in rows if a.ad_key in run.state["ads"])
+        if not todo and not need_activate:
             run.log(f"[{profile}] всё уже создано, пропуск")
             continue
         run.log(f"[{profile}] старт, объявлений к созданию: {len(todo)}")
         try:
             with ProfileSession(cfg, dolphin, profile, log=run.log) as s:
-                currencies = check_profile(s, todo, run.log)
+                currencies = check_profile(s, todo or rows, run.log)
                 if dry_run:
                     for a in todo:
                         run.log(f"  [план] {a.campaign} / {a.adset} / {a.ad_name} ({a.media_type})")
                     continue
                 for a in todo:
                     _create_row(s, run, a, currencies[a.account_id])
+                if activate:
+                    failed = [a.row for a in rows if a.ad_key not in run.state["ads"]]
+                    if failed:
+                        run.log(f"  ВНИМАНИЕ: строки {failed} не созданы, включаю только созданное")
+                    run.log(f"[{profile}] включено объектов: {activate_rows(s, run, rows)}")
         except Exception as e:  # профиль целиком упал - идём к следующему
             run.log(f"[{profile}] ОШИБКА: {e}")
             for a in todo:
