@@ -32,6 +32,9 @@ def main(argv=None):
     p = sub.add_parser("inspect", help="кабинеты, страницы, пиксели профиля")
     p.add_argument("--profile", required=True)
 
+    p = sub.add_parser("diag", help="диагностика: какие токены и способы запросов работают в профиле")
+    p.add_argument("--profile", required=True)
+
     p = sub.add_parser("search", help="поиск интересов/городов для брифа")
     p.add_argument("--profile", required=True)
     p.add_argument("--q", required=True)
@@ -92,6 +95,13 @@ def main(argv=None):
             for acc, px in info["pixels"].items():
                 for x in px:
                     print(f"  {acc}: {x.get('id', '')} {x.get('name', x.get('error', ''))} last_fired={x.get('last_fired_time', '')}")
+
+        elif a.cmd == "diag":
+            d = ops.diagnose(cfg, a.profile)
+            print(f"\nURL страницы: {d['url']}")
+            _table(d["report"], ["token", "host", "cookies", "ok", "result"])
+            print("\nИТОГ: " + (f"работает {d['chosen']['host']} куки={d['chosen']['cookies']}" if d["ok"] else d["error"].split(chr(10))[0]))
+            return 0 if d["ok"] else 1
 
         elif a.cmd == "search":
             kind = "adinterest" if a.type == "interest" else "adgeolocation"

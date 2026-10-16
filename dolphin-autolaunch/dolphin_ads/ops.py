@@ -161,3 +161,18 @@ def search_targeting(cfg: Config, profile: str, query: str, kind: str = "adinter
         if kind == "adgeolocation":
             params["location_types"] = ["city"]
         return s.get("search", **params).get("data", [])
+
+
+def diagnose(cfg: Config, profile: str) -> dict:
+    """Какие токены нашлись и какие связки хост/куки работают (для отладки)."""
+    dolphin = Dolphin(cfg)
+    s = ProfileSession(cfg, dolphin, profile)
+    try:
+        s.__enter__()
+        return {"ok": True, "url": s.page.url, "chosen": {"host": s.graph_base, "cookies": s.cred},
+                "report": s.probe_report}
+    except Exception as e:
+        return {"ok": False, "error": str(e), "report": s.probe_report,
+                "url": s.page.url if s.page else ""}
+    finally:
+        s.__exit__(None, None, None)

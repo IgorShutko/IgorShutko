@@ -260,3 +260,23 @@ def test_launch_with_activate(env):
     n = len(fake.calls)
     launch(cfg, brief, "a1", activate=True)
     assert not [c for c in fake.calls[n:] if "start" in c["path"]]
+
+
+def test_probe_picks_working_token(env, capsys):
+    fake, tmp = env
+    cfg = load_config(str(tmp / "config.json"))
+    fake.decoy_first = True
+    d = ops.diagnose(cfg, "Shop_UA")
+    assert d["ok"] and len(d["report"]) == 3  # decoy x 2 режима кук -> провал, затем валидный
+    assert [r["ok"] for r in d["report"]] == [False, False, True]
+    info = ops.inspect_profile(cfg, "Shop_UA")
+    assert len(info["accounts"]) == 3
+
+    import os
+    os.environ["DOLPHIN_ADS_CONFIG"] = str(tmp / "config.json")
+    try:
+        from dolphin_ads.__main__ import main
+        assert main(["diag", "--profile", "Shop_UA"]) == 0
+        assert "ИТОГ: работает" in capsys.readouterr().out
+    finally:
+        os.environ.pop("DOLPHIN_ADS_CONFIG", None)

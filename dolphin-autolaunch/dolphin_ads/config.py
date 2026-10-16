@@ -34,6 +34,16 @@ class Config:
     def graph(self) -> str:
         return f"{self.graph_base.rstrip('/')}/{self.graph_version}"
 
+    def graph_candidates(self) -> list[tuple[str, str]]:
+        """(хост Graph API, режим кук) в порядке перебора. Первый рабочий закрепляется на сессию."""
+        if self.graph_base.rstrip("/") != "https://graph.facebook.com":
+            return [(self.graph_base.rstrip("/"), "include"), (self.graph_base.rstrip("/"), "omit")]
+        return [
+            ("https://adsmanager-graph.facebook.com", "include"),  # так ходит сам Ads Manager
+            ("https://graph.facebook.com", "include"),
+            ("https://graph.facebook.com", "omit"),
+        ]
+
     @property
     def runs_path(self) -> Path:
         p = Path(self.runs_dir)

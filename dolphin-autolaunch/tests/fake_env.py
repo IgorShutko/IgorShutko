@@ -33,7 +33,8 @@ class FakeEnv:
         self.calls: list[dict] = []
         self.browsers: dict[str, subprocess.Popen] = {}
         self.counter = 0
-        self.fail_rules: list[dict] = []   # [{"method":..., "path_re":..., "error":{...}, "times": n}]
+        self.fail_rules: list[dict] = []
+        self.decoy_first = False           # window.__accessToken = невалидный токен, валидный только в HTML   # [{"method":..., "path_re":..., "error":{...}, "times": n}]
         self.lock = threading.Lock()
         env = self
 
@@ -168,7 +169,10 @@ class FakeEnv:
             return 200, {"data": [p for p in profiles if qn in p["name"]]}, j
         # Ads Manager
         if path == "/adsmanager":
-            return 200, f"<html><body>Ads Manager<script>window.__accessToken='{TOKEN}';</script></body></html>", "text/html"
+            decoy = "EAAD" + "z" * 50
+            first, html_tok = (decoy, TOKEN) if self.decoy_first else (TOKEN, decoy)
+            return 200, (f"<html><body>Ads Manager<script>window.__accessToken='{first}';</script>"
+                         f"<div data-t='{html_tok}'></div></body></html>"), "text/html"
 
         if not path.startswith("/v23.0/"):
             return 404, {"error": "not found"}, j

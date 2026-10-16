@@ -13,11 +13,11 @@ from .config import Config
 from .dolphin import Dolphin
 
 FETCH_JS = """
-async ({url, method, params}) => {
+async ({url, method, params, cred}) => {
   let res;
   try {
     if (method === 'GET') {
-      res = await fetch(url + '?' + new URLSearchParams(params).toString(), {credentials: 'omit'});
+      res = await fetch(url + '?' + new URLSearchParams(params).toString(), {credentials: cred});
     } else {
       const body = new FormData();
       for (const [k, v] of Object.entries(params)) {
@@ -28,7 +28,7 @@ async ({url, method, params}) => {
           body.append(k, v);
         }
       }
-      res = await fetch(url, {method, body, credentials: 'omit'});
+      res = await fetch(url, {method, body, credentials: cred});
     }
     const text = await res.text();
     try { return JSON.parse(text); }
@@ -41,9 +41,11 @@ async ({url, method, params}) => {
 
 TOKEN_JS = """
 () => {
-  if (window.__accessToken) return window.__accessToken;
-  const m = document.documentElement.innerHTML.match(/EAA[A-Za-z0-9]{30,}/);
-  return m ? m[0] : null;
+  const out = [];
+  if (typeof window.__accessToken === 'string' && window.__accessToken) out.push(window.__accessToken);
+  const html = document.documentElement.innerHTML;
+  for (const m of html.matchAll(/EAA[A-Za-z0-9]{30,}/g)) if (!out.includes(m[0])) out.push(m[0]);
+  return out.slice(0, 6);
 }
 """
 
@@ -73,6 +75,9 @@ class ProfileSession:
         self.cfg, self.dolphin, self.profile_ref, self.log = cfg, dolphin, profile_ref, log
         self.profile_id = None
         self.token = None
+        self.graph_base = None
+        self.cred = "include"
+        self.probe_report: list[dict] = []
         self._pw = self._browser = self.page = None
 
     # ---------- жизненный цикл ----------
@@ -110,18 +115,44 @@ class ProfileSession:
     def _load_token(self):
         self.page.goto(self.cfg.ads_manager_url, wait_until="domcontentloaded", timeout=120_000)
         deadline = time.time() + self.cfg.token_wait
+        tokens = []
         while time.time() < deadline:
             try:
-                self.token = self.page.evaluate(TOKEN_JS)
+                tokens = self.page.evaluate(TOKEN_JS) or []
             except Exception:
-                self.token = None  # страница ещё грузится/редиректит
-            if self.token:
-                self.log(f"[{self.profile_ref}] токен получен")
-                return
+                tokens = []  # страница ещё грузится/редиректит
+            if tokens:
+                break
             time.sleep(2)
-        url = self.page.url
-        hint = "чекпоинт/логин" if any(x in url for x in ("checkpoint", "login")) else "Ads Manager не прогрузился"
-        raise RuntimeError(f"[{self.profile_ref}] токен не найден ({hint}), URL: {url}")
+        if not tokens:
+            url = self.page.url
+            hint = "чекпоинт/логин" if any(x in url for x in ("checkpoint", "login")) else "Ads Manager не прогрузился"
+            raise RuntimeError(f"[{self.profile_ref}] токен не найден ({hint}), URL: {url}")
+        self.log(f"[{self.profile_ref}] найдено токенов: {len(tokens)}, подбираю рабочий способ запросов")
+        self._probe(tokens)
+
+    def _probe(self, tokens: list[str]):
+        """Перебирает токены x хосты x режим кук на GET me/adaccounts, закрепляет первую рабочую связку."""
+        self.probe_report = []
+        for ti, tok in enumerate(tokens):
+            for base, cred in self.cfg.graph_candidates():
+                url = f"{base}/{self.cfg.graph_version}/me/adaccounts"
+                res = self.page.evaluate(FETCH_JS, {"url": url, "method": "GET", "cred": cred,
+                                                    "params": {"fields": "account_id", "limit": "200", "access_token": tok}})
+                ok = isinstance(res, dict) and "error" not in res
+                err = "" if ok else (res.get("error", {}) if isinstance(res, dict) else {})
+                self.probe_report.append({
+                    "token": f"#{ti + 1} {tok[:6]}..{tok[-4:]} ({len(tok)})", "host": base.split("//")[-1],
+                    "cookies": cred, "ok": ok,
+                    "result": (f"кабинетов: {len(res.get('data', []))}" if ok
+                               else f"{err.get('message', err)} (code={err.get('code')})")[:90],
+                })
+                if ok:
+                    self.token, self.graph_base, self.cred = tok, base, cred
+                    self.log(f"[{self.profile_ref}] ок: {base.split('//')[-1]}, куки={cred}, кабинетов {len(res.get('data', []))}")
+                    return
+        lines = "\n".join(f"  {r['token']} | {r['host']} | {r['cookies']} | {r['result']}" for r in self.probe_report)
+        raise RuntimeError(f"[{self.profile_ref}] ни один способ запросов не сработал:\n{lines}")
 
     # ---------- Graph API ----------
 
@@ -138,11 +169,11 @@ class ProfileSession:
                 prepared[k] = "true" if v else "false"
             else:
                 prepared[k] = str(v)
-        url = f"{self.cfg.graph}/{path.lstrip('/')}"
         attempt = 0
         while True:
+            url = f"{self.graph_base}/{self.cfg.graph_version}/{path.lstrip('/')}"
             prepared["access_token"] = self.token
-            res = self.page.evaluate(FETCH_JS, {"url": url, "method": method, "params": prepared})
+            res = self.page.evaluate(FETCH_JS, {"url": url, "method": method, "params": prepared, "cred": self.cred})
             time.sleep(self.cfg.request_delay)
             if not isinstance(res, dict) or "error" not in res:
                 return res
